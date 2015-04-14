@@ -1,0 +1,711 @@
+Analysis of Red Wines Dataset by Yohann Lucas
+========================================================
+
+As a frenchman, I decided to analyse the dataset of red wines and try to understand what makes a good wine from a wine expert perspesctive and if there are some variables that impact to some extent the overall quality. I regularly drink red wine without considering myself an expert, therefore I was really interested in knowing more about this dataset and its outcome.
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, packages}
+# Load all of the packages that you end up using
+# in your analysis in this code chunk.
+
+# Notice that the parameter "echo" was set to FALSE for this code chunk.
+# This prevents the code from displaying in the knitted HTML output.
+# You should set echo=FALSE for all code chunks in your file.
+
+library(ggplot2)
+library(dplyr)
+library(plyr)
+library(GGally)
+library(gridExtra)
+```
+
+```{r echo=FALSE, Load_the_Data}
+# Load the Data
+setwd("C:/Users/ylucas/Documents/Udacity/R")
+wine <- read.csv("wineQualityReds.csv")
+```
+
+# Univariate Plots Section
+
+#### Structure of the data
+
+The dataset includes 13 variables and 1599 observations.
+```{r echo=FALSE, Univariate_Plots}
+str(wine)
+```
+
+#### Wine Scores
+
+The wine score is spread between 3 and 8 on the 1599 observations with most of the scores at 5 or 6.
+
+```{r echo=FALSE, fig.width=10}
+summary(wine$quality)
+
+ggplot(aes(x=factor(quality)), data = wine) +
+  geom_bar() +
+  xlab("Score") +
+  ylab("Occurence") +
+  ggtitle("Histogram for Wine Score (Quality) \n")
+```
+
+#### Alcohol Percentage 
+
+The alcohol percentage for each wine in the dataset is spread between 8.40 and 14.90. From the histogram we can see that it is positively skewed with a peak between 9 and 10. The summary also indicates a mean of 10.42
+
+```{r echo=FALSE, fig.width=10}
+summary(wine$alcohol)
+ggplot(aes(x=alcohol), data = wine) +
+  geom_bar(binwidth = 0.1) +
+  xlab("Alcohol (% by volume)") +
+  ylab("Occurence") +
+  scale_x_continuous(limits = c(8,15), breaks = seq(8,15,1)) +
+  ggtitle("Histogram for Alcohol Percentage \n")
+```
+
+#### Density of the Wine 
+
+The density of the wine is between 0.9901 and 1.004. The histogram is rounded to 3 digits after the decimal and we can see a normal distribution with a peak between 0.996 and 0.998. I have also added a vertical line which corresponds to the water density, in order to give an idea of where the wine density stands compared to water.
+
+```{r echo=FALSE, fig.width=10}
+table(round(wine$density,3))
+
+ggplot(aes(x=round(density,3)), data = wine) +
+  geom_bar(binwidth = 0.001) +
+  geom_vline(xintercept = 1, colour = "red") +
+  xlab("Wine density (g / cm^3)") +
+  ylab("Occurence") +
+  scale_x_continuous(limits = c(0.99,1.005), breaks = seq(0.99,1.005,0.002)) +
+  ggtitle("Histogram for Wine Density (Rounded to 3 decimal digits) \n")
+```
+
+#### Wine pH level
+
+As mentioned in the description, the wine pH is usually found between 3 and 4. Here we can see that the min is 2.74 while the max is 4.010 and the mean is 3.3. In any case, the wines are considered of acidic pH level
+
+```{r, echo=FALSE}
+summary(wine$pH)
+```
+
+
+#### Identifying Erroneous values
+
+With the below code, I'm making sure there are no NA values and that there are no erroneous values :
+
+- Complete.cases function allows to identify complete rows (or rows with NA values with !). Here it returns 0 so no NA values
+
+- With regards to So2 I made sure that there was no entry with more free SO2 than total SO2
+
+- With regards to Quality, I made sure there was no quality rate less than 0 or higher than 10
+
+```{r}
+wine[!complete.cases(wine),]
+nrow(subset(wine, total.sulfur.dioxide < free.sulfur.dioxide))
+nrow(subset(wine, quality < 0 | quality > 10))
+```
+
+#### Sweet Wines or High SO2 Levels
+
+Looking at the description, the SO2 becomes evident in the taste of wine when its free form is higher than 50 ppm. Based on my internet search, within wine 1 ppm = 1mg/L, considering that 1L = 1dm^3, therefore we can keep the measurement as it is.
+
+Sweet wines are measured through the Residual Sugars which should be higher than 45 g/dm^3
+
+I have created 2 subsets, one for sweet wines and one for which the free sulfur dioxide is higher than the rate at which the SO2 can be evident in the taste. There are no wines considered as "sweet" and 16 wines with high free SO2 level.
+
+
+```{r}
+wineSO2 <- subset(wine, wine$free.sulfur.dioxide > 50)
+nrow(wineSO2)
+
+wine_sweet <- subset(wine, wine$residual.sugar > 45)
+nrow(wine_sweet)
+```
+
+# Univariate Analysis
+
+### What is the structure of your dataset?
+
+All of the variables are numeric with quality being the only integer. There are 13 variables and 1599 oversations in the dataset. It is also worth mentioning that the wine quality is the median of at least 3 evaluations made by wine experts.
+
+
+
+### What is/are the main feature(s) of interest in your dataset?
+
+My main interest in the dataset will be quality as I would like to identify if there are any variables impacting this outcome. The dataset includes 1599 observations and most of the wine evaluation are 5 or 6 while the minimum quality is 3 and maximum 8.
+
+The mean falls right between 5 and 6 at 5.636.
+
+
+
+
+### What other features in the dataset do you think will help support your investigation into your feature(s) of interest?
+
+As the variables can be very technical, I can't make any assumptions so far with regards to the variables impacting the wine quality. I suppose that Alcohol might be a variable having an impact on the wine, potentially pH as well as it relates to the basicity/acidity of the wine.
+
+It was also important to have a look at the description of the variables given with the dataset. Some of those information are really important because they'll help identifying variables that may have an impact on the quality of the wine.
+
+Some of those variables are :
+
+- Volatile Acidity : Can lead to vinegar taste in high quantity
+- Residual Sugar : Determines the sweetness of a wine
+- Free Sulfur Dioxide : Seems to become evident after a certain amount
+- Sulphates : Acts as an antimicrobial and antioxidant
+
+
+
+
+### Did you create any new variables from existing variables in the dataset?
+
+I created the variable bound.sulfur.dioxide as it is supposed to be the difference between the total amount of sulfur dioxide (SO2) and the amount of free form sulfur dioxide (SO2).
+
+### Of the features you investigated, were there any unusual distributions? Did you perform any operations on the data to tidy, adjust, or change the form of the data? If so, why did you do this?
+
+The most unusual distribution was alcohol as I thought it would be either evenly distributed or a normal distribution, but finally it was positively skewed with a peak around 9/10. As I'm quite a red wine drinker, I thought that the mean/median would have been higher than that, probably around 12.
+
+I have not tidied the data, except removing the X variable which was only an identifier and I wanted to rule it out for the GGPairs so it wouldn't be assessed on. All data was readily available and I believe no transformation was needed. I changed the name of some columns in order to have a cleaner generated GGPairs, some of the column names were too long making the reading quite difficult.
+
+# Bivariate Plots Section
+```{r echo=FALSE, Bivariate_Plots}
+wine$X <- NULL
+wine$bound.sulfur.dioxide <- wine$total.sulfur.dioxide - wine$free.sulfur.dioxide
+names(wine)[1] <- "fix.acidity"
+names(wine)[2] <- "vol.acidity"
+names(wine)[4] <- "res.sugar"
+names(wine)[6] <- "free.SO2"
+names(wine)[7] <- "total.SO2"
+names(wine)[13] <- "bound.SO2"
+```
+
+![Alt text](https://dl.dropboxusercontent.com/u/1112801/GGPairs%20Final.png "ggpair outcome - Red Wine Dataset")
+
+Based on the ggpair above, I decided to have a look at bivariate plots with the 4 most correlated variables with quality in order to have a deeper look into the relationships.
+
+For each bivariate plot , in order to focus on the correlation, I decided to include :
+
++ A boxplot of the variable depending on quality
+
++ Median line
+
+```{r echo=FALSE, fig.width=10}
+p1 <- ggplot(aes(x=as.numeric(quality), y = alcohol), data = wine) + 
+  geom_boxplot(aes(group=quality), data = wine) +
+  geom_line(color = "red", stat = "summary", fun.y = median) +
+  xlab("Wine Score") +
+  ylab("Alcohol (% by volume)") +
+  scale_x_continuous(limits = c(2,9), breaks = seq(3,8,1))
+
+p2 <- ggplot(aes(x=as.numeric(quality), y = vol.acidity), data = wine) + 
+  geom_boxplot(aes(group=quality), data = wine) +
+  geom_line(color="red", stat = "summary", fun.y = median) +
+  xlab("Wine Score") +
+  ylab("Volatile Acidity (g / dm^3)") +
+  scale_x_continuous(limits = c(2,9), breaks = seq(3,8,1))
+
+p3 <- ggplot(aes(x=as.numeric(quality), y = sulphates), data = wine) + 
+  geom_boxplot(aes(group=quality), data = wine) +
+  geom_line(color = "red", stat = "summary", fun.y = median) +
+  xlab("Wine Score") +
+  ylab("Sulphates (g / dm^3)") +
+  scale_x_continuous(limits = c(2,9), breaks = seq(3,8,1))
+
+p4 <- ggplot(aes(x=as.numeric(quality), y = citric.acid), data = wine) + 
+  geom_boxplot(aes(group=quality), data = wine) +
+  geom_line(color = "red",stat = "summary", fun.y = median) +
+  xlab("Wine Score") +
+  ylab("Citric Acid (g / dm^3)") +
+  scale_x_continuous(limits = c(2,9), breaks = seq(3,8,1))
+
+grid.arrange(p1,p2,p3,p4,ncol = 2, main = "Focus on relationship between Score (Quality) and 4 highest correlated variables \n")
+```
+
+The left graph below shows the relationship between the citric acid level and density. Through the smooth line, we can see that there's a positive correlation as the density increases if the citric acid level is high.
+
+The right graph below shows the density/alcohol relationship between which is the opposite to the fixed acidity/density relationship. In this case the highest the density is, the lowest the degree of alcohol is, this is in fact called an anti-correlation (negative correlation)
+
+
+```{r, echo=FALSE, fig.width=10}
+
+p1 <- ggplot(aes(x = fix.acidity, y=density), data = wine) + 
+  geom_point() +
+  stat_smooth(size=1, colour = "red") +
+  xlab("Fixed Acidity (g / dm^3)") +
+  ylab("Density (g / cm^3)")
+
+p2 <- ggplot(aes(x=alcohol, y = density), data = wine) + 
+  geom_point() +
+  stat_smooth(size=1, colour = "red") +
+  xlab("Alcohol (% by volume))") +
+  ylab("Density (g / cm^3)")
+
+grid.arrange(p1,p2,ncol = 2, main = "Relationship between Density and Fixed Acidity/Alcohol \n")
+```
+
+
+
+# Bivariate Analysis
+
+### Talk about some of the relationships you observed in this part of the investigation. How did the feature(s) of interest vary with other features in the dataset?
+
+In order to start the investigation, I initiated a ggpair so I could have a look at the correlation coefficients between varibales but also at the automated plots in case I could identify some interesting distributions.
+
+I had no real expectations with regards to the impact of other variables on the quality, however I was somehow surprised with some of the findings. With the limited dataset that we have on red wines, there are many variables which are significantly correlated to the quality of wine. You can find below the list of variables with their corresponding correlation coefficient (I excluded coefficients close to 0) :
+
+#### Positive Correlation
+
+- Alcohol : 0.476
+
+- Sulphates : 0.251
+
+- Citric Acid: 0.226
+
+- Fixed Acidity: 0.124
+
+#### Negative Correlation
+
+- Volatile Acidity : -0.391
+
+- Bound form of SO2 : -0.205
+
+- Total SO2 : -0.185
+
+- Density : -0.175
+
+- Chlorides : -0.129
+
+I also found an interesting relationship with one of the remaining variables (Free Sulfur Dioxide) which had not a significant correlation coefficient with the quality. Looking at the ggpair plot, it seemed to be very close to a normal distribution. This would mean that the lowest the variable can be, the higher chance is to find either a bad or a good rating. If the variable is high, there's a higher probability that the quality is average.
+
+You can observe it by looking at the median line across the quality of wine on the graph below (I used the geom_jitter in order to have a better looking plot) :
+
+
+```{r, echo=FALSE, fig.width=10}
+ggplot(aes(x = quality, y=free.SO2), data = wine) + 
+  geom_jitter() +
+  geom_line(colour = "red", size = 1, stat = "summary", fun.y = median) +
+  xlab("Wine Score") +
+  ylab("Free Sulfur Dioxide (mg / dm^3)") +
+  scale_x_continuous(limits = c(2,9), breaks = seq(2,9,1)) +
+  ggtitle("Relationship between Wine Score and free form SO2 \n")
+```
+
+
+### Did you observe any interesting relationships between the other features (not the main feature(s) of interest)?
+
+On top of the previous mentioned ones : Density/Alcohol and Density/Fixed Acidity, I have found some interesting relationships/plots through the GGpair that I wanted to investigate further.
+
+First one that came to mind was the relationship between Chlorides and Residual Sugar as you can see below. I am not sure how to consider the observations which are on the top-left-hand corner and the ones on the bottom-right-hand corner. Would they be considered as outliers or related to the limited data available for red wines with more than 4 mg/L of residual sugars OR more than 0.2 mg/L of chlorides ?
+
+```{r, echo=FALSE, fig.width=10}
+ggplot(aes(x = res.sugar, y=chlorides), data = wine) + 
+  xlab("Residual Sugar (g / dm^3)") +
+  ylab("Chlorides (g / dm^3)") +
+  geom_point() +
+  ggtitle("Scatter plot on relationship between Chlorides and Residual Sugar \n")
+```
+
+It is actually quite interesting to see the behavior of Chlorides as they always seem to come up with interesting scatter plots similar to the one above. You can see below another scatter plot with Chlorides, but this time with Density. There seems to be a linear distribution, however the Chlorides are surprisingly high between density .995 and 1. Perhaps more investigation towards the general behavior of Chlorides might be a next step in order to understand how it develops unevenly in certain conditions. It might also be linked to a different type of wine which is part of the dataset, however, as we don't have information about the grapes, year, producer, we can't find any information about the nature of the wine and why only a dozen of observations have high level of Chlorides.
+
+
+```{r, echo=FALSE, fig.width=10}
+ggplot(aes(x = density, y=chlorides), data = wine) + 
+  xlab("Density (g / cm^3)") +
+  ylab("Chlorides (g / dm^3)") +
+  geom_point() +
+  ggtitle("Scatter plot on relationship between Chlorides and Density \n")
+```
+
+I cannot include all the interesting relationships as it would take quite some time, so I include this last one which bends towards an inverse distribution. This is the Fixed Acidity/ Citric Acid relationship, it is however slightly biased as I suppose the acidity nature of both variables may impact the correlation.
+
+```{r, echo=FALSE, fig.width=10}
+ggplot(aes(x = fix.acidity, y=citric.acid), data = wine) + 
+  xlab("Fixed Acidity (g / dm^3)") +
+  ylab("Citric Acid (g / dm^3)") +
+  geom_point() +
+  ggtitle("Scatter plot on relationship between Fixed Acidity and Citric Acid \n")
+```
+
+
+### What was the strongest relationship you found?
+
+The strongest relationship I found was 0.958 (bound SO2 and total SO2), however I decided to have a look at the second strongest relationship as bound SO2 was the added variable which was obtained through a simple substraction between total SO2 an free SO2, therefore the relationship is evident.
+
+The most interesting relationship was pH over Fixed Acidity as it came up with a correlation coefficient of -0.683. You can find below the scatterplot to illustrate this relationship
+
+```{r, echo=FALSE, fig.width=10}
+ggplot(aes(x = pH, y=fix.acidity), data = wine) + 
+  xlab("pH") +
+  ylab("Fixed Acidity (g / dm^3)") +
+  geom_point() +
+  geom_smooth(colour = "red", size = 1) +
+  ggtitle("Relationship between pH and Fixed Acidity")
+```
+
+
+# Multivariate Plots Section
+
+```{r echo=FALSE}
+wine$round_alcohol <- round(wine$alcohol)
+
+means <- wine %>%
+  group_by(round_alcohol) %>%
+  summarise_each(funs(mean))
+
+means_score<- wine %>%
+  group_by(quality) %>%
+  summarise_each(funs(mean))
+```
+
+As seen in the section above, we were able to identify the highest correlation coefficients between quality and the other variables available in our dataset. In order to see if there was some interesting relationship through a multivariate plot, I decided to have a look at each of the bivariate scatterplot with other variables. In order to focus on my feature of interest (quality), I colored each point with its related score.
+
+I found several plots which were somehow relevant and have been listing them below. For each of those scatterplot, you'll also see a bigger point which is the mean point for each group of score. The legend on the right indicates the color for each score. The other variables involved in the plots below are :
+
+- Volatile Acidity
+
+- Density
+
+- Sulphates
+
+- Bound Form of So2
+
+
+```{r, echo=FALSE, fig.width=10}
+a1 <- ggplot(aes(x=vol.acidity, y=alcohol, colour = factor(quality)), data = wine) +
+  labs(colour="Score") +
+  geom_point() +
+  xlab("Volatile Acidity (g / dm^3)") +
+  ylab("Alcohol (% by volume)") +
+  geom_point(colour = "black",data = means_score, size = 4) +
+  geom_point(data = means_score, size = 3) +
+  ggtitle("Volatile Acidity \n")
+
+a2 <- ggplot(aes(x=density,y=alcohol,colour = factor(quality)), data = wine) +
+  labs(colour="Score") +
+  geom_point() +
+  xlab("Density (g / cm^3)") +
+  ylab("Alcohol (% by volume)") +
+  geom_point(colour = "black",data = means_score, size = 4) +
+  geom_point(data = means_score, size = 3) +
+  ggtitle("Density \n")
+
+a3 <- ggplot(aes(x=sulphates,y=alcohol,colour = factor(quality)), data = wine) +
+  labs(colour="Score") +
+  geom_point() +
+  xlab("Sulphates (g / dm^3)") +
+  ylab("Alcohol (% by volume)") +
+  geom_point(colour = "black",data = means_score, size = 4) +
+  geom_point(data = means_score, size = 3) +
+  ggtitle("Sulphates \n")
+
+a4 <- ggplot(aes(x=bound.SO2,y=alcohol,colour = factor(quality)), data = wine) +
+  labs(colour="Score") +
+  geom_point() +
+  xlab("Bound Form So2 (mg / dm^3)") +
+  ylab("Alcohol") +
+  geom_point(colour = "black",data = means_score, size = 4) +
+  geom_point(data = means_score, size = 3) +
+  ggtitle("Bound form of So2 \n")
+
+grid.arrange(a1,a2,a3,a4,ncol=2, main = "Mutlivariate plots between Alcohol, Quality (colored) and a third variable")
+```
+
+
+Thos plots were interesting to analyse (further in this section, the hint is to look at Score 5), however I wanted to add another layer to the Density plot as I thought there was an interesting trend. This additional layer is an ellipse that covers most of the points for each score, you can see the ellipse shifting towards the top-left hand corner as the score increases (below)
+
+
+```{r, echo=FALSE, fig.width=10}
+ggplot(aes(x=density,y=alcohol,colour = factor(quality)), data = wine) +
+  labs(colour="Score") +
+  geom_point() +
+  xlab("Density (g / cm^3)") +
+  ylab("Alcohol (% by volume)") +
+  geom_point(colour = "black",data = means_score, size = 4) +
+  geom_point(data = means_score, size = 3) +
+  stat_ellipse(geom="polygon",level = .9,alpha = .05) +
+  ggtitle("Mutlivariate plots between Alcohol, Quality (colored) and Density \n")
+```
+
+The plots above had one fixed variable (besides my feature of interest : Quality), I therefore decided to have a look at another set of fixed variables and to analyse the variation adding a third variable. In the case below, i decided to have a look at Volatile Acidity which was the second highest correlated variable with Quality.
+
+The 3rd variable below is Density, however both plots are the same, I decided to zoom in as I thought there could be an interesting relationship. I used the xlim/ylim with the quantile function to zoom
+
+```{r,echo=FALSE, fig.width=10}
+v1 <- ggplot(aes(x=vol.acidity,y=density,colour = factor(quality)), data = wine) +
+  labs(colour="Score") +
+  geom_point() +
+  xlab("Volatile Acidity (g / dm^3)") +
+  ylab("Density (g / cm^3)") +
+  geom_point(colour = "black",data = means_score, size = 4) +
+  geom_point(data = means_score, size = 3) +
+  ggtitle("Normal Plot \n")
+
+
+v2 <- ggplot(aes(x=vol.acidity,y=density,colour = factor(quality)), data = wine) +
+  ylim(quantile(wine$density,.05),quantile(wine$density,.95)) +
+  xlim(quantile(wine$vol.acidity,.01),quantile(wine$vol.acidity,.99)) +
+  labs(colour="Score") +
+  geom_point() +
+  xlab("Volatile Acidity (g / dm^3)") +
+  ylab("Density (g / cm^3)") +
+  geom_point(colour = "black",data = means_score, size = 4) +
+  geom_point(data = means_score, size = 3) +
+  ggtitle("Zoomed Plot \n")
+
+grid.arrange(v1,v2,ncol=1, main = "Mutlivariate plots between Volatile Acidity, Quality (colored) and Density")
+```
+
+Citric Acid is also one of the high correlated feature with Quality, therefore I decided to have a look at its relationship with Quality and a third variable. The 3rd variable that were showing an interesting relationship were :
+
+- Density
+
+- pH
+
+What I liked about those plots is that, we can see on the first graph that the means of the Quality seem to follow the direction of the plot, while for the second graph, the means of the quality seem to go against the distribution of the scatterplot which I found quite intriguing.
+
+
+```{r,echo=FALSE,fig.width=10}
+c1 <- ggplot(aes(x=citric.acid,y=pH,colour = factor(quality)), data = wine) +
+  labs(colour="Score") +
+  geom_point() +
+  xlab("Citric Acid (g / dm^3)") +
+  ylab("pH") +
+  geom_point(colour = "black",data = means_score, size = 4) +
+  geom_point(data = means_score, size = 3) +
+  ggtitle("pH \n")
+
+c2 <- ggplot(aes(x=citric.acid,y=density,colour = factor(quality)), data = wine) +
+  labs(colour="Score") +
+  geom_point() +
+  xlab("Citric Acid (g / dm^3)") +
+  ylab("Density (g / cm^3)") +
+  geom_point(colour = "black",data = means_score, size = 4) +
+  geom_point(data = means_score, size = 3) +
+  ggtitle("Density \n")
+
+grid.arrange(c1,c2,ncol=1, main="Mutlivariate plots between Citric Acid, Quality (colored) and a 3rd variable \n")
+```
+
+# Multivariate Analysis
+
+### Talk about some of the relationships you observed in this part of the investigation. Were there features that strengthened each other in terms of looking at your feature(s) of interest?
+
+While looking at the multivariate plots, it became evident that Alcohol was clearly the stronger feature to impact the quality of the wine. Those analysis would have been quite difficult to realize if I had not created a subset of the dataset through dplyr including the means grouped by quality score. Thanks to this subset, I was able to include another layer on the graph which allowed to see the trend for each wine score.
+
+The most interesting plot in order to see the strengthening of features, was the one including the 2 highest correlation coefficient : Alcohol and Volatile Acidity. For all the other plots, a different analysis could have been made as we could see a trend appearing when comparing the lowest and highest scores, however the average scores tend to not follow this trend.
+
+In my quest to find which features were most impacting the quality of the wine, I found that it was difficult to find one approach that would specify easily and quickly if a wine would be a 3, a 5 or an 8. However, through the many different generated plots, it became evident that some relationships can highlight if a wine is likely to be high or likely to be low, however there's too much observations "in the middle" to be able to know if a wine is going to be a 5 or a 6 (which I consider as average score).
+
+I made one of those different identifications for almost each of the multivariate plots :
+
+- Trend appearing across all scores
+
+- Formation of clusters (mostly 3-4, 5-6 and 7-8)
+
+- Despite identifying a trend in the scores, the observations for score 5 were not following it (mostly close to scores 3-4)
+
+
+
+### Were there any interesting or surprising interactions between features?
+
+When looking at the description file, it is mentioned that density is impacted by sugar and alcohol. I therefore decided to have a look at the correlation coefficient between the multiplication and division of alcohol and residual sugars. It was an interesting surprise to see that the coefficient of density against the division of alcohol/sugar was one of the highest identified in the GGpair.
+
+```{r, echo=FALSE}
+cor.test(wine$density, wine$alcohol/wine$res.sugar)
+```
+
+
+Looking at the corresponding plot, there's only one intriguing value where the rounded alcohol percentage is at 15. In this case the observation is absolutely not in line with the rest of the observations. It would be interesting to focus on this one however it ight be considered as an outlier in an analysis
+
+
+```{r, echo=FALSE, fig.width=10}
+ggplot(aes(x=alcohol/res.sugar,y=density, colour = factor(round_alcohol)), data = wine) +
+  labs(colour="Rounded Alcohol") +
+  geom_point(alpha = .6) +
+  ylab("Density (g / cm^3)") +
+  xlab("Alcohol / Residual Sugar") +
+  geom_point(colour = "black",data = means, size = 4) +
+  geom_point(data = means, size = 3) +
+  ggtitle("Relationship between Density and the division of Alcohol per Residual Sugar \n")
+```
+
+### OPTIONAL: Did you create any models with your dataset? Discuss the strengths and limitations of your model.
+
+I have created a model using linear regression and the lm function. I have setup the outcome as the wine score (quality) and used many of the most correlated variables (8 in my first model). Through the mtable function, it is possible to identify which variables have a big or small impact on the fitness of the model. I was therefore able to shortlist the variables to only 3 which were :
+
+- Alcohol
+
+- Volatile Acidity
+
+- Sulphates
+
+- Chlorides
+
+
+It is interesting to realize that Chlorides, despite having a weaker correlation coefficient, seems to have a bigger impact than some other variables that had a higher correlation coefficient (ie Chlorides : -0.129, Citric Acid : 0.226).
+
+The R-squared value is 0.341 and I believe is quite weak compared to what we could see in the diamonds dataset, however I'm not quite sure the linear regression model best fits to this dataset as the outcome is a range of defined values (between 0 and 10). I had a look online and found articles about logistic regression which helps building models based on outcome with pre-defined values ( ie 0-1, yes-no etc...), however I don't know if the wine dataset enters in that category as there's still a scale attached to the outcome (0 : bad, 10 : excellent)
+
+Nevertheless, I still decided to have a look at the predicted outcome and to figure out how far was my prediction model from reality. Using the predict function I was able to get a dataframe including the predicted outcome for my dataset, however the predicted outcome was numeric with decimals, i then decided to round it up to the closest score as opposed to changing its value to an integer.
+
+You can see on the histograms below the difference between the predicted value and the real score of the wine. The "initial" histogram was taken as the integer of the outcome, while the second histogram is the rounded predicted outcome. We can clearly see that rounding the predicted outcmoe makes a better prediction.
+
+
+```{r, echo=FALSE, message=FALSE}
+library(memisc)
+
+m1 <- lm(quality ~ alcohol, data = wine)
+m2 <- update(m1, ~ . + vol.acidity)
+m3 <- update(m2, ~ . + sulphates)
+m4 <- update(m3, ~ . + chlorides)
+predicted = predict(m4, newdata = wine, interval = "prediction")
+```
+
+```{r, echo=FALSE, message=FALSE}
+predict <- data.frame(predicted[,'fit'])
+predict$score <- wine$quality
+predict$fit <- as.numeric(predict$predicted....fit..)
+predict$fit <- round(predict$predicted....fit..)
+predict$fit_int <- as.integer(predict$predicted....fit..)
+predict$dif <- ifelse(predict$score - predict$fit > 0, predict$score - predict$fit, -(predict$score - predict$fit))
+predict$dif_int <- ifelse(predict$score - predict$fit_int > 0, predict$score - predict$fit_int, -(predict$score - predict$fit_int))
+```
+
+```{r, echo=FALSE, message=FALSE, fig.width=10}
+
+p1 <- ggplot(aes(x=dif_int), data = predict) +
+  geom_histogram(binwidth=1, origin = -.5, fill = "red",alpha = .4) +
+  scale_x_continuous(limits = c(-1,3), breaks = seq(-1,3,1)) +
+  scale_y_continuous(limits = c(0,1000), breaks = seq(0,1000,100)) +
+  ggtitle("Initial Linear Regression model \n") +
+  xlab("Difference between Prediction and Dataset") +
+  ylab("Occurence")
+
+
+p2 <- ggplot(aes(x=dif), data = predict) +
+  geom_histogram(binwidth=1, origin = -.5, fill = "green",alpha = .4) +
+  scale_x_continuous(limits = c(-1,3), breaks = seq(-1,3,1)) +
+  scale_y_continuous(limits = c(0,1000), breaks = seq(0,1000,100)) +
+  ggtitle("Rounded Linear Regression model \n") +
+  xlab("Difference between Prediction and Dataset") +
+  ylab("Occurence")
+
+grid.arrange(p1,p2,ncol=2)
+```
+
+On the table below you'll see the exact distribution on the errors (using the rounded predicted value) and the predictions are quite accurate :
+
+- 96,8 % have an error of maximum 1 
+
+- 58,5% of the scores are correct
+
+
+Based on this, we can figure out that the prediction model has done quite a good job despite the low R-Squared value.
+
+
+``` {r,echo=FALSE}
+table(predict$dif)
+```
+
+
+By looking at the distribution of errors depending on the score of the wine, it is now possible to have a look at which scores were best identified or least identified (Table below generated using the by function) :
+
+- 3,4 and 8 were the least identified scores (3 and 8 were never rightly predicted, only 1 for the score 4)
+
+- 7 was predicted only 16% of the time which is still considered as low
+
+- 5 and 6 were the most succesfully predicted values with a 70% combined rate
+
+``` {r,echo=FALSE}
+by(predict$dif, predict$score,table)
+```
+
+------
+
+# Final Plots and Summary
+
+### Plot One
+```{r echo=FALSE,fig.width=10, Plot_One}
+ggplot(aes(x=alcohol), data = wine) +
+  geom_bar(binwidth = 0.1) +
+  xlab("Alcohol (% by volume)") +
+  ylab("Occurence") +
+  scale_x_continuous(limits = c(8,15), breaks = seq(8,15,1)) +
+  ggtitle("Histogram for Alcohol Percentage \n")
+```
+
+### Description One
+
+The main reason for me to analyse this red wines dataset is because I am a red wine drinker myself and wanted to increase my knowledge about what makes a good or a bad wine. My first reaction was to look at the distribution of the wine scores in order to understand the scope of the dataset and while the scores spread was what I was expecting (normal distribution around the average score), I was surprised by the distribution of the alcohol percentage which I sought to be higher. It was a first lesson as I drink mostly red wines which are from Italy/Spain or Southern France and those generally have a high percentage of alcohol compared to other red wines from other regions. For example I drink mostly wines around 13-14% of alcohol, while the distribution of alcohol on this dataset was mostly concentrated into the 9-10 degrees.
+
+Above is an histogram of all the observations included in the red wines dataset and you can see the distribution of the alcohol percentage for each of the 1599 red wines. We can clearly see the majority of the wines are within the 9-10 range, while it decreases constantly towards 14-15 range which becomes rare.
+
+### Plot Two
+
+```{r echo=FALSE,fig.width=10,Plot_Two}
+ggplot(aes(x=quality, fill=as.factor(round_alcohol)), data = wine) +
+  labs(fill="Alcohol % (Rounded)") +
+  xlab("Score") + 
+  ylab("Probability") +
+  geom_bar(position = "fill", binwidth = .5, origin = 2.25) +
+  scale_x_continuous(limits = c(2.5,8.5), breaks = seq(3,8,1)) +
+  ggtitle("Distribution of the alcohol percentage based on the wine score \n")
+```
+
+### Description Two
+
+When looking at Multivariates plots and the GGpair output, it was clear than alcohol had the most significant impact on the wine score with a positive correlation. The more alcohol in the wine, the higher the score is likely to be. In order to confirm this observation, you can have a look at the histogram above and see the distribution of the percentage of alcohol within wines grouped by scores.
+
+The relationship between the score and alcohol precentage is clearly visible when you look into the evolution of the scores. While red wines with an 11% alcohol percentage does not give any satisfactory trend as it is evenly spread across all wine scores, the lowest percentages are only seen on the lowest scores while the highest percentage of alcohol are only/mainly seen on the highest scores.
+
+When looking at both ends of the histogram we can realize that (keeping in mind that the alcohol percentage is rounded) :
+
+- 70% of Score "3" are below 10 degrees (10.5 due to rounding)
+
+- 70% of Score "8" are above 11 degrees (11.5 due to rounding)
+
+
+### Plot Three
+```{r echo=FALSE,fig.width=10,Plot_Three}
+ggplot(aes(x=citric.acid,y=pH,colour = factor(quality)), data = wine) +
+  labs(colour="Score") +
+  geom_point() +
+  xlab("Citric Acid (g / dm^3)") +
+  ylab("pH") +
+  geom_point(colour = "black",data = means_score, size = 4) +
+  geom_point(data = means_score, size = 3) +
+  ggtitle("Relationship between Citric Acid and pH over Score \n")
+```
+
+### Description Three
+
+While looking for interesting multivariate plots, I stumbled upon a dozen plots where I could see three cluster being formed. Shoult it be multivariates with Alcohol, Density, pH, Citric Acid, I came across this behavior a significant amount of time so I thought I would add it to my final plots and summary. As you can see on this scatter plot but as I could also observe on many others, 3 different clusters are trending :
+
+- Scores 3 & 4, 5 & 6, 7 & 8
+
+I am not sure how to interpret this trend, except from one of my observations earlier where I stated that : "It is easy to identify a good to a bad wine in the dataset, but very difficult to identify an average one"
+
+------
+
+# Reflection
+
+It has been quite a long ride to analyze this dataset as I really wanted to dive deep into any relationship I could find. While I managed to use a model which was fitting the dataset to almost 60% and even 97% considering an error margin of maximum 1, I felt frustrated to realize that most of the extreme notes were not discovered (ie 3-4 and 7-8).
+
+I still believe that, with more data available, I would be able to produce a better model as there's a lot of impactful data that were not available in this dataset such as :
+
+- Types of Grape
+
+- Year
+
+- Producer
+
+- Region
+
+- Aging
+
+
+All of those factors above are supposed to impact the quality of the wine based on my experience but also from different articles I've been able to read throughout the years. However, looking back at the different Nanodegree projects, it's always something that will come up : the non-exhaustivity of the data available. While it would be difficult in this case to add more data as it seems anonymous, there's plenty of other projects where additional data could be gathered through different sources and considerably increase the fitness of the model
+
+Nevertheless, it is interesting to realize that you can still judge a wine quality (to some extent) with very technical variables without the need to actually taste it. It must provide the wine maker some sort of guidance towards how to produce a better wine. From the highest correlation coefficient, we can see that Alcohol plays a big part, therefore the wine makers must try to find techniques in order to increase the alcohol degree towards 14 and also decrease the volatile acidity (negative correlation). By looking in the Wine fermentation process, you realize that volatile acidity appears following oxydation during the fermentation process etc..
+
+To sum it up, the wine fermentation is a process that plays a lot in the quality of the wine and also the reason why wine makers pay a particular attention to this process as it can make a big success or a big failure. Wine is not only made out of grapes, it is a chemical process which needs to be followed very strictly in order to avoid bad surprises. So after all, while there might be some data missing, we still have all the information available to predict a potential outcome.
+
+There's also something that we need to pay attention to : causality. As explained above the fermentation process is a very long process where a lot of chemical reactions occur, however it is difficult to realize what are the causes and/or consequences of some reactions. While the alcohol percentage seems to be a consequence of many reactions, we really need to pay attention to this process as it can lead very quickly to a confusion between what is the cause and what is the consequence of those reactions, therefore ending up in wrong assumptions or not using the most appropriate variable to build the model.
+
+On top of this fermentation process, the judgment of the wine experts can also contains uncertainty, as they may all have slightly different criteria when judging a wine. I do not believe that one expert will mark a wine as 3 and another expert the same wine at 8, but I still think that there might be some variations which can lead to different scores. This is actually probably the reason that the outcome of the dataset is measured as the median of 3 different wine expert score. While Enology (study of the wine) guides all wine experts, I still firmly believe that a specific wine may be perceived differently from one palate to the other, so it is not an exact science.
