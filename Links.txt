@@ -1,1 +1,2 @@
 http://www.statmethods.net/input/missingdata.html 
+Analysis : http://rpubs.com/kaltera/UdacityP3
